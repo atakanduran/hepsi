@@ -56,16 +56,36 @@ if "hidrofor_calisiyor" not in st.session_state:
     st.session_state.hidrofor_calisiyor = False
 if "sulama_aktif" not in st.session_state:
     st.session_state.sulama_aktif = False
+if "batarya_uyari_gonderildi" not in st.session_state:
+    st.session_state.batarya_uyari_gonderildi = False
+
+# Batarya Seviyeleri
+KART1_PIL = 85
+KART2_PIL = 9  # Örnek düşük seviye
+
+# Batarya Kritik Uyarı Kontrolü
+if not st.session_state.batarya_uyari_gonderildi:
+    if KART1_PIL <= 10:
+        send_telegram_msg(f"⚠️ Kart-1 şarj oranı %{KART1_PIL} altına düştü!")
+    if KART2_PIL <= 10:
+        send_telegram_msg(f"⚠️ Kart-2 şarj oranı %{KART2_PIL} altına düştü!")
+    st.session_state.batarya_uyari_gonderildi = True
 
 # --- SOL MENÜ (SIDEBAR) ---
 with st.sidebar:
-    st.title("🌳 Zeytin OS v1.4")
+    st.title("🌳 Zeytin OS v1.5")
     st.info("📍 İzmir / Bergama")
     
-    # Hava Durumu Nem ile birlikte
     w = get_weather()
     st.write(f"🌡️ **Hava:** {w['temp']}°C | %{w['hum']} Nem")
     st.caption(f"☁️ {w['desc']}")
+    
+    st.divider()
+    st.subheader("🔋 Batarya Durumları")
+    st.caption(f"Kart-1 (Sensör): %{KART1_PIL}")
+    st.progress(KART1_PIL/100)
+    st.caption(f"Kart-2 (Depo): %{KART2_PIL}")
+    st.progress(KART2_PIL/100)
     
     st.divider()
     sayfa = st.radio("Yönetim Paneli:", ["Zeytinlik Hesap Merkezi", "Çiftlik Gözlem & Sulama", "Su Deposu ve Hidrofor"])
@@ -93,19 +113,18 @@ if sayfa == "Zeytinlik Hesap Merkezi":
         st.metric("Toplam Ağaç / Tahmini Hasat", f"{int(toplam_agac)} Adet / {toplam_zeytin:,.0f} Kg")
 
     with col2:
-        st.subheader("💧 Yağ Oranı ve Ekonomi")
-        yag_randiman = st.number_input("Yağ Randımanı (Kaç kiloda 1 litre?)", value=4.5, step=0.1)
+        st.subheader("💧 Yağ Verimi ve Ekonomi")
+        # Yağ randımanını yüzde üzerinden hesaplıyoruz
+        yag_yuzdesi = st.number_input("Zeytin Yağ Verimi (%)", value=22.0, step=0.5, help="100 kg zeytinden kaç kg yağ çıkıyor?")
         litre_fiyat = st.number_input("Yağ Litre Fiyatı (TL)", value=350)
         
-        toplam_yag = toplam_zeytin / yag_randiman
-        toplam_gelir = toplam_yag * litre_fiyat
+        # Formül: Toplam Zeytin * (Yüzde / 100)
+        toplam_yag_kg = toplam_zeytin * (yag_yuzdesi / 100)
+        # Zeytinyağı yoğunluğu yaklaşıktır, 1 kg yağ yaklaşık 1.1 litredir ancak doğrudan kg/litre 1:1 kabul edilmiştir.
+        toplam_gelir = toplam_yag_kg * litre_fiyat
         
-        st.success(f"Tahmini Yağ Üretimi: {int(toplam_yag)} Litre")
+        st.success(f"Tahmini Yağ Üretimi: {int(toplam_yag_kg)} Litre")
         st.metric("Beklenen Brüt Gelir", f"{toplam_gelir:,.0f} TL")
-
-    st.divider()
-    st.subheader("🔗 Faydalı Bağlantılar")
-    st.markdown("- [Tariş Zeytin ve Zeytinyağı Birliği](https://www.tariszeytinyagi.com.tr/)")
 
 # --- 2. SAYFA: ÇİFTLİK GÖZLEM & SULAMA ---
 elif sayfa == "Çiftlik Gözlem & Sulama":
@@ -136,14 +155,13 @@ elif sayfa == "Çiftlik Gözlem & Sulama":
     nem_cols = st.columns(4)
     for i in range(1, 21):
         with nem_cols[(i-1) % 4]:
-            # Sulama aktifse ikon yeşil, değilse nem oranına göre (32 altı kırmızı)
+            n = np.random.randint(25, 45)
             if st.session_state.sulama_aktif:
                 icon = "🟢"
+                st.write(f"{icon} Bölge {i:02d} (%100)")
             else:
-                n = np.random.randint(25, 45)
                 icon = "🟢" if n >= 32 else "🔴"
-            
-            st.write(f"{icon} **Bölge {i:02d}**")
+                st.write(f"{icon} Bölge {i:02d} (%{n})")
 
 # --- 3. SAYFA: SU DEPOSU VE HİDROFOR ---
 elif sayfa == "Su Deposu ve Hidrofor":
