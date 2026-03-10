@@ -4,120 +4,146 @@ import numpy as np
 import requests
 from datetime import datetime
 
-# 1. SAYFA VE TEMA AYARLARI
+# 1. SAYFA AYARLARI
 st.set_page_config(page_title="Zeytin OS | İzmir-Bergama", page_icon="🌳", layout="wide")
 
-# --- GENEL FONKSİYONLAR ---
+# --- FONKSİYONLAR ---
 def send_telegram_msg(mesaj):
     try:
         token = st.secrets["TELEGRAM_TOKEN"]
         chat_id = st.secrets["CHAT_ID"]
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         params = {"chat_id": chat_id, "text": mesaj}
-        response = requests.get(url, params=params, timeout=10)
-        if response.status_code == 200:
-            st.toast("Bildirim Gönderildi! ✅")
+        requests.get(url, params=params, timeout=10)
     except:
         pass
 
-# --- SİSTEM DEĞİŞKENLERİ (BELLEK) ---
+def get_weather():
+    try:
+        api_key = st.secrets["OPENWEATHER_API_KEY"]
+        # Bergama koordinatları üzerinden çekiyoruz
+        url = f"https://api.openweathermap.org/data/2.5/weather?q=Bergama,TR&appid={api_key}&units=metric&lang=tr"
+        data = requests.get(url).json()
+        return {
+            "temp": data["main"]["temp"],
+            "desc": data["weather"][0]["description"].capitalize(),
+            "wind": data["wind"]["speed"],
+            "humidity": data["main"]["humidity"]
+        }
+    except:
+        return {"temp": "N/A", "desc": "Bağlantı Yok", "wind": 0, "humidity": 0}
+
+# --- SİSTEM DEĞİŞKENLERİ ---
 if "depo_seviyesi" not in st.session_state:
     st.session_state.depo_seviyesi = 65
 if "hidrofor_calisiyor" not in st.session_state:
     st.session_state.hidrofor_calisiyor = False
 
-# --- SOL ANA MENÜ (NAVİGASYON) ---
+KART1_PIL, KART2_PIL = 85, 9
+
+# --- SOL MENÜ (NAVİGASYON) ---
 with st.sidebar:
     st.title("🌳 Zeytin OS v1.0")
-    st.subheader("İzmir / Bergama Operasyonu")
+    st.info("📍 İzmir / Bergama")
     st.divider()
     
-    # ANA MENÜ SEÇİMİ
-    ana_menu = st.selectbox(
-        "Gitmek İstediğiniz Bölüm:",
-        ["🏠 Ana Kontrol Paneli", "📡 Ar-Ge & Sensör Takibi", "📈 Verim & Ekonomi Analizi"]
+    sayfa = st.radio(
+        "Görüntüleme Merkezi:",
+        ["Zeytinlik Hesap Paneli", "Su Deposu ve Hidrofor", "Çiftlik Gözlem Merkezi"]
     )
     
     st.divider()
-    # Kart Durumları (Hepsinde Görünsün)
     st.write("### 🔋 Cihaz Durumları")
-    st.caption("Kart-1 (Sensör): %85")
-    st.progress(0.85)
-    st.caption("Kart-2 (Depo): %9")
-    st.progress(0.09)
-    if st.session_state.hidrofor_calisiyor:
-        st.warning("⚡ Hidrofor Şu An Aktif!")
+    st.caption(f"Kart-1 (Sensör): %{KART1_PIL}")
+    st.progress(KART1_PIL/100)
+    st.caption(f"Kart-2 (Depo): %{KART2_PIL}")
+    st.progress(KART2_PIL/100)
+    if KART2_PIL <= 10:
+        st.warning("⚠️ Kart-2 Batarya Kritik!")
 
-# --- BÖLÜM 1: ANA KONTROL PANELİ (ÖZET) ---
-if ana_menu == "🏠 Ana Kontrol Paneli":
-    st.title("🏠 Zeytinlik Genel Durum Özet")
+# --- 1. SAYFA: HESAP PANELİ & HAVA DURUMU (TASLAK) ---
+if sayfa == "Zeytinlik Hesap Paneli":
+    st.title("📈 Zeytinlik Verim ve Hava Durumu")
     
-    col1, col2, col3 = st.columns(3)
+    # Hava Durumu Şeridi
+    w = get_weather()
+    w_col1, w_col2, w_col3, w_col4 = st.columns(4)
+    w_col1.metric("Sıcaklık", f"{w['temp']}°C")
+    w_col2.metric("Durum", w['desc'])
+    w_col3.metric("Rüzgar", f"{w['wind']} m/s")
+    w_col4.metric("Nem", f"%{w['humidity']}")
+    
+    st.divider()
+    
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Hava Durumu", "18°C", delta="☀️ Açık")
-    with col2:
-        st.metric("Sıradaki İşlem", "Gübreleme", delta="3 Gün Kaldı")
-    with col3:
-        st.metric("Depo Durumu", f"%{st.session_state.depo_seviyesi}", delta="Kritik" if st.session_state.depo_seviyesi < 20 else "Normal")
-
-    st.divider()
-    st.subheader("🗓️ Haftalık Görev Listesi")
-    st.checkbox("Sulama Sistemi Filtre Temizliği", value=True)
-    st.checkbox("Arbequina Fidanları Kontrolü", value=False)
-    st.checkbox("Biyogaz Sistemi Gübre Girişi", value=False)
-
-# --- BÖLÜM 2: AR-GE & SENSÖR TAKİBİ (DÜNKÜ PANEL) ---
-elif ana_menu == "📡 Ar-Ge & Sensör Takibi":
-    st.title("📡 Anlık Sensör ve Depo Kontrolü")
-    
-    tab_sensor, tab_depo = st.tabs(["🌱 Toprak Nemi", "💧 Depo & Hidrofor"])
-    
-    with tab_sensor:
-        st.subheader("20 Bölge Nem Durumu")
-        cols = st.columns(4)
-        for i in range(1, 21):
-            with cols[(i-1)%4]:
-                n = np.random.randint(28, 42)
-                st.write(f"{'🟢' if n >= 32 else '🔴'} Bölge {i:02d}: %{n}")
-    
-    with tab_depo:
-        l, r = st.columns([1, 2])
-        with l:
-            st.markdown(f'<div style="background:#f0f0f0; border:2px solid #555; border-radius:10px; width:70px; height:250px; position:relative; margin:auto;"><div style="background:#2196F3; width:100%; height:{st.session_state.depo_seviyesi}%; position:absolute; bottom:0; border-radius:0 0 8px 8px;"></div></div>', unsafe_allow_html=True)
-            st.write(f"<p style='text-align:center'><b>%{st.session_state.depo_seviyesi}</b></p>", unsafe_allow_html=True)
-        with r:
-            if st.session_state.hidrofor_calisiyor:
-                st.error("⚡ Hidrofor Çalışıyor...")
-                if st.button("🔴 DURDUR", use_container_width=True):
-                    st.session_state.hidrofor_calisiyor = False
-                    send_telegram_msg("✅ Hidrofor Durduruldu.")
-                    st.rerun()
-            else:
-                st.success("💤 Beklemede")
-                if st.button("🟢 BAŞLAT", use_container_width=True):
-                    st.session_state.hidrofor_calisiyor = True
-                    send_telegram_msg("⚡ Hidrofor Başlatıldı!")
-                    st.rerun()
-
-# --- BÖLÜM 3: VERİM & EKONOMİ ANALİZİ (İLK TASLAK) ---
-elif ana_menu == "📈 Verim & Ekonomi Analizi":
-    st.title("📈 Hasat Tahmini ve Finansal Durum")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("🌳 Zeytin Verim Hesabı")
-        agac_sayisi = st.number_input("Toplam Ağaç Sayısı", value=150)
-        tahmini_verim = st.slider("Ağaç Başı Verim (Kg)", 5, 50, 20)
-        toplam_hasat = agac_sayisi * tahmini_verim
-        st.info(f"Beklenen Toplam Hasat: {toplam_hasat} Kg")
+        st.subheader("🌳 Arazi ve Ağaç Hesabı")
+        donum = st.number_input("Toplam Arazi (Dönüm)", value=8.0, step=0.5)
+        donum_basi_agac = st.number_input("Dönümdeki Ağaç Sayısı", value=20)
+        agac_basi_zeytin = st.slider("Ağaç Başı Zeytin Verimi (Kg)", 5, 60, 25)
         
-    with c2:
-        st.subheader("💰 Tahmini Gelir (Yağlık)")
-        fiyat = st.number_input("Zeytinyağı Litre Fiyatı (TL)", value=350)
-        # 5 kilo zeytinden 1 litre yağ hesabı
-        toplam_yag = toplam_hasat / 5
-        st.success(f"Tahmini Gelir: {toplam_yag * fiyat:,.0f} TL")
+        toplam_agac = donum * donum_basi_agac
+        toplam_zeytin = toplam_agac * agac_basi_zeytin
+        
+        st.info(f"Toplam Ağaç: {int(toplam_agac)} | Toplam Zeytin: {toplam_zeytin:,.0f} Kg")
+
+    with col2:
+        st.subheader("💰 Yağ ve Gelir Tahmini")
+        randiman = st.selectbox("Yağ Oranı (1 Litre için kaç kg zeytin?)", [3, 4, 5, 6], index=2)
+        litre_fiyat = st.number_input("Yağ Litre Satış Fiyatı (TL)", value=350)
+        
+        toplam_yag = toplam_zeytin / randiman
+        toplam_gelir = toplam_yag * litre_fiyat
+        
+        st.success(f"Tahmini Yağ: {int(toplam_yag)} Litre")
+        st.metric("Beklenen Brüt Gelir", f"{toplam_gelir:,.0f} TL")
+
+# --- 2. SAYFA: SU DEPOSU VE HİDROFOR ---
+elif sayfa == "Su Deposu ve Hidrofor":
+    st.title("💧 Su Deposu ve Hidrofor Kontrolü")
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Depo Seviyesi", f"%{st.session_state.depo_seviyesi}")
+    c2.metric("Hidrofor", "AÇIK" if st.session_state.hidrofor_calisiyor else "KAPALI")
+    c3.metric("Kart-2 Pil", f"%{KART2_PIL}")
 
     st.divider()
-    st.subheader("📜 Sulama ve Operasyon Geçmişi")
-    st.table(pd.DataFrame({"İşlem": ["Sulama", "Gübreleme", "İlaçlama"], "Tarih": ["09.03.26", "01.03.26", "20.02.26"], "Maliyet": ["1200 TL", "4500 TL", "2200 TL"]}))
+    l, r = st.columns([1, 2])
+    
+    with l:
+        st.subheader("💧 Depo")
+        st.markdown(f'<div style="background:#f0f0f0; border:2px solid #555; border-radius:10px; width:70px; height:250px; position:relative; margin:auto;"><div style="background:#2196F3; width:100%; height:{st.session_state.depo_seviyesi}%; position:absolute; bottom:0; border-radius:0 0 8px 8px;"></div></div>', unsafe_allow_html=True)
+        st.write(f"<p style='text-align:center'><b>%{st.session_state.depo_seviyesi}</b></p>", unsafe_allow_html=True)
+
+    with r:
+        st.subheader("⚙️ Operasyon")
+        if st.session_state.hidrofor_calisiyor:
+            st.error("⚡ Hidrofor Şu An Çalışıyor")
+            if st.button("🔴 DURDUR", use_container_width=True):
+                st.session_state.hidrofor_calisiyor = False
+                send_telegram_msg("✅ Bilgi: Hidrofor durduruldu.")
+                st.rerun()
+        else:
+            st.success("💤 Hidrofor Beklemede")
+            if st.button("🟢 BAŞLAT", use_container_width=True):
+                st.session_state.hidrofor_calisiyor = True
+                send_telegram_msg("⚡ Uyarı: Hidrofor başlatıldı!")
+                st.rerun()
+        
+        st.divider()
+        st.subheader("📜 Doldurma Geçmişi")
+        st.table(pd.DataFrame({"Tarih": ["09.03.26", "07.03.26"], "Miktar": ["1200L", "2500L"], "Süre": ["45dk", "90dk"]}))
+
+# --- 3. SAYFA: ÇİFTLİK GÖZLEM MERKEZİ ---
+elif sayfa == "Çiftlik Gözlem Merkezi":
+    st.title("🛰️ Anlık Sensör Verileri (Kart-1)")
+    
+    st.metric("Ana Hat Akışı", "120 L/dk", delta="Stabil")
+    
+    st.divider()
+    st.subheader("🌱 20 Bölge Toprak Nemi")
+    cols = st.columns(4)
+    for i in range(1, 21):
+        with cols[(i-1) % 4]:
+            nem = np.random.randint(25, 45)
+            st.write(f"{'🟢' if nem >= 32 else '🔴'} Bölge {i:02d}: %{nem}")
