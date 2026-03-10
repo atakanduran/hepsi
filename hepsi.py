@@ -11,14 +11,17 @@ st.set_page_config(page_title="Zeytin OS | Yönetim", page_icon="🌳", layout="
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# --- TELEGRAM FONKSİYONU ---
+# --- TELEGRAM FONKSİYONU (ÇİFT BİLDİRİMLİ) ---
 def send_telegram_msg(mesaj):
     try:
         token = st.secrets["TELEGRAM_TOKEN"]
-        chat_id = st.secrets["CHAT_ID"]
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        params = {"chat_id": chat_id, "text": mesaj}
-        requests.get(url, params=params, timeout=10)
+        # İki farklı ID'yi de listede tutuyoruz
+        chat_ids = [st.secrets["CHAT_ID"], st.secrets["CHAT_ID_2"]]
+        
+        for cid in chat_ids:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            params = {"chat_id": cid, "text": mesaj}
+            requests.get(url, params=params, timeout=10)
     except:
         pass
 
@@ -61,7 +64,7 @@ if "batarya_uyari_gonderildi" not in st.session_state:
 
 # Batarya Seviyeleri
 KART1_PIL = 85
-KART2_PIL = 9  # Örnek düşük seviye
+KART2_PIL = 9 
 
 # Batarya Kritik Uyarı Kontrolü
 if not st.session_state.batarya_uyari_gonderildi:
@@ -73,7 +76,7 @@ if not st.session_state.batarya_uyari_gonderildi:
 
 # --- SOL MENÜ (SIDEBAR) ---
 with st.sidebar:
-    st.title("🌳 Zeytin OS v1.5")
+    st.title("🌳 Zeytin OS v1.6")
     st.info("📍 İzmir / Bergama")
     
     w = get_weather()
@@ -114,13 +117,10 @@ if sayfa == "Zeytinlik Hesap Merkezi":
 
     with col2:
         st.subheader("💧 Yağ Verimi ve Ekonomi")
-        # Yağ randımanını yüzde üzerinden hesaplıyoruz
-        yag_yuzdesi = st.number_input("Zeytin Yağ Verimi (%)", value=22.0, step=0.5, help="100 kg zeytinden kaç kg yağ çıkıyor?")
+        yag_yuzdesi = st.number_input("Zeytin Yağ Verimi (%)", value=22.0, step=0.5)
         litre_fiyat = st.number_input("Yağ Litre Fiyatı (TL)", value=350)
         
-        # Formül: Toplam Zeytin * (Yüzde / 100)
         toplam_yag_kg = toplam_zeytin * (yag_yuzdesi / 100)
-        # Zeytinyağı yoğunluğu yaklaşıktır, 1 kg yağ yaklaşık 1.1 litredir ancak doğrudan kg/litre 1:1 kabul edilmiştir.
         toplam_gelir = toplam_yag_kg * litre_fiyat
         
         st.success(f"Tahmini Yağ Üretimi: {int(toplam_yag_kg)} Litre")
