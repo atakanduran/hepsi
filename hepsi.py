@@ -28,14 +28,17 @@ def get_weather():
         api_key = st.secrets["OPENWEATHER_API_KEY"]
         url = f"https://api.openweathermap.org/data/2.5/weather?q=Bergama,TR&appid={api_key}&units=metric&lang=tr"
         data = requests.get(url).json()
-        return {"temp": data["main"]["temp"], "desc": data["weather"][0]["description"].capitalize()}
+        return {
+            "temp": data["main"]["temp"], 
+            "desc": data["weather"][0]["description"].capitalize(),
+            "hum": data["main"]["humidity"]
+        }
     except:
-        return {"temp": "N/A", "desc": "Bağlantı Yok"}
+        return {"temp": "N/A", "desc": "Bağlantı Yok", "hum": 0}
 
 # --- GİRİŞ EKRANI ---
 if not st.session_state.authenticated:
     st.title("🚜 Çiftlik Yönetimine Hoşgeldiniz")
-    st.subheader("Lütfen yönetici bilgileriyle giriş yapınız.")
     sifre = st.text_input("Yönetici Şifresi:", type="password")
     if st.button("Sisteme Giriş Yap"):
         if sifre == "1925": 
@@ -56,12 +59,13 @@ if "sulama_aktif" not in st.session_state:
 
 # --- SOL MENÜ (SIDEBAR) ---
 with st.sidebar:
-    st.title("🌳 Zeytin OS v1.3")
+    st.title("🌳 Zeytin OS v1.4")
     st.info("📍 İzmir / Bergama")
     
-    # Hava Durumu Konumun Hemen Altında
+    # Hava Durumu Nem ile birlikte
     w = get_weather()
-    st.write(f"🌡️ **Hava:** {w['temp']}°C | {w['desc']}")
+    st.write(f"🌡️ **Hava:** {w['temp']}°C | %{w['hum']} Nem")
+    st.caption(f"☁️ {w['desc']}")
     
     st.divider()
     sayfa = st.radio("Yönetim Paneli:", ["Zeytinlik Hesap Merkezi", "Çiftlik Gözlem & Sulama", "Su Deposu ve Hidrofor"])
@@ -82,8 +86,6 @@ if sayfa == "Zeytinlik Hesap Merkezi":
         st.subheader("🌳 Tarla ve Ağaç Verimi")
         donum = st.number_input("Toplam Arazi (Dönüm)", value=8.0, step=0.1)
         agac_basi = st.slider("Ağaç Başı Verim (Kg)", 5, 60, 25)
-        
-        # Dönümdeki Ağaç Sayısı: 20-200 arası beşerli slider
         donum_basi_agac = st.slider("Dönümdeki Ağaç Sayısı", min_value=20, max_value=200, value=20, step=5)
 
         toplam_agac = donum * donum_basi_agac
@@ -103,9 +105,7 @@ if sayfa == "Zeytinlik Hesap Merkezi":
 
     st.divider()
     st.subheader("🔗 Faydalı Bağlantılar")
-    st.write("Verim modelleri ve piyasa takibi için aşağıdaki siteleri inceleyebilirsiniz:")
     st.markdown("- [Tariş Zeytin ve Zeytinyağı Birliği](https://www.tariszeytinyagi.com.tr/)")
-    st.markdown("- [İspanyol (Arbequina) Sık Dikim Bilgi Hattı](https://www.agromillora.com/tr/olivos-shd/)")
 
 # --- 2. SAYFA: ÇİFTLİK GÖZLEM & SULAMA ---
 elif sayfa == "Çiftlik Gözlem & Sulama":
@@ -136,8 +136,14 @@ elif sayfa == "Çiftlik Gözlem & Sulama":
     nem_cols = st.columns(4)
     for i in range(1, 21):
         with nem_cols[(i-1) % 4]:
-            n = np.random.randint(25, 45)
-            st.write(f"{'🟢' if n >= 32 else '🔴'} Bölge {i:02d}: %{n}")
+            # Sulama aktifse ikon yeşil, değilse nem oranına göre (32 altı kırmızı)
+            if st.session_state.sulama_aktif:
+                icon = "🟢"
+            else:
+                n = np.random.randint(25, 45)
+                icon = "🟢" if n >= 32 else "🔴"
+            
+            st.write(f"{icon} **Bölge {i:02d}**")
 
 # --- 3. SAYFA: SU DEPOSU VE HİDROFOR ---
 elif sayfa == "Su Deposu ve Hidrofor":
