@@ -22,12 +22,23 @@ def send_telegram_msg(mesaj):
     except:
         pass
 
+# --- HAVA DURUMU FONKSİYONU ---
+def get_weather():
+    try:
+        api_key = st.secrets["OPENWEATHER_API_KEY"]
+        url = f"https://api.openweathermap.org/data/2.5/weather?q=Bergama,TR&appid={api_key}&units=metric&lang=tr"
+        data = requests.get(url).json()
+        return {"temp": data["main"]["temp"], "desc": data["weather"][0]["description"].capitalize()}
+    except:
+        return {"temp": "N/A", "desc": "Bağlantı Yok"}
+
 # --- GİRİŞ EKRANI ---
 if not st.session_state.authenticated:
-    st.title("🔐 Zeytin OS Güvenli Giriş")
+    st.title("🚜 Çiftlik Yönetimine Hoşgeldiniz")
+    st.subheader("Lütfen yönetici bilgileriyle giriş yapınız.")
     sifre = st.text_input("Yönetici Şifresi:", type="password")
     if st.button("Sisteme Giriş Yap"):
-        if sifre == "1925": # Burayı dilediğin şifreyle değiştirebilirsin Başkan
+        if sifre == "1925": 
             st.session_state.authenticated = True
             send_telegram_msg("🔓 Bilgi: Yönetici girişi yapıldı.")
             st.rerun()
@@ -43,22 +54,16 @@ if "hidrofor_calisiyor" not in st.session_state:
 if "sulama_aktif" not in st.session_state:
     st.session_state.sulama_aktif = False
 
-# --- HAVA DURUMU FONKSİYONU ---
-def get_weather():
-    try:
-        api_key = st.secrets["OPENWEATHER_API_KEY"]
-        url = f"https://api.openweathermap.org/data/2.5/weather?q=Bergama,TR&appid={api_key}&units=metric&lang=tr"
-        data = requests.get(url).json()
-        return {"temp": data["main"]["temp"], "desc": data["weather"][0]["description"].capitalize(), "wind": data["wind"]["speed"]}
-    except:
-        return {"temp": "N/A", "desc": "Bağlantı Yok", "wind": 0}
-
-# --- SOL MENÜ ---
+# --- SOL MENÜ (SIDEBAR) ---
 with st.sidebar:
-    st.title("🌳 Zeytin OS v1.2")
+    st.title("🌳 Zeytin OS v1.3")
     st.info("📍 İzmir / Bergama")
-    st.divider()
     
+    # Hava Durumu Konumun Hemen Altında
+    w = get_weather()
+    st.write(f"🌡️ **Hava:** {w['temp']}°C | {w['desc']}")
+    
+    st.divider()
     sayfa = st.radio("Yönetim Paneli:", ["Zeytinlik Hesap Merkezi", "Çiftlik Gözlem & Sulama", "Su Deposu ve Hidrofor"])
     
     st.divider()
@@ -70,9 +75,6 @@ with st.sidebar:
 # --- 1. SAYFA: ZEYTİNLİK HESAP MERKEZİ ---
 if sayfa == "Zeytinlik Hesap Merkezi":
     st.title("📈 Verim Analizi ve Finansal Hesaplama")
-    
-    w = get_weather()
-    st.write(f"🌤️ **Anlık Bergama:** {w['temp']}°C | {w['desc']} | Rüzgar: {w['wind']} m/s")
     st.divider()
 
     col1, col2 = st.columns(2)
@@ -81,17 +83,8 @@ if sayfa == "Zeytinlik Hesap Merkezi":
         donum = st.number_input("Toplam Arazi (Dönüm)", value=8.0, step=0.1)
         agac_basi = st.slider("Ağaç Başı Verim (Kg)", 5, 60, 25)
         
-        st.write("### 📜 Referans Verim Listeleri")
-        liste_secimi = st.radio("Verim Modeli Seçin:", ["Özel Hesaplama", "Tariş Standart", "İspanyol (Arbequina) Yoğun"])
-        
-        if liste_secimi == "Tariş Standart":
-            donum_basi_agac = 25
-            st.caption("Tariş Standart: 6x6 metre dikim modeli.")
-        elif liste_secimi == "İspanyol (Arbequina) Yoğun":
-            donum_basi_agac = 150
-            st.caption("İspanyol Model: 1.5x4 metre sık dikim modeli.")
-        else:
-            donum_basi_agac = st.number_input("Dönümdeki Ağaç Sayısı", value=20)
+        # Dönümdeki Ağaç Sayısı: 20-200 arası beşerli slider
+        donum_basi_agac = st.slider("Dönümdeki Ağaç Sayısı", min_value=20, max_value=200, value=20, step=5)
 
         toplam_agac = donum * donum_basi_agac
         toplam_zeytin = toplam_agac * agac_basi
@@ -99,7 +92,6 @@ if sayfa == "Zeytinlik Hesap Merkezi":
 
     with col2:
         st.subheader("💧 Yağ Oranı ve Ekonomi")
-        # Yağ oranını ondalık olarak istedin Başkan, step 0.1 yaptık
         yag_randiman = st.number_input("Yağ Randımanı (Kaç kiloda 1 litre?)", value=4.5, step=0.1)
         litre_fiyat = st.number_input("Yağ Litre Fiyatı (TL)", value=350)
         
@@ -109,11 +101,16 @@ if sayfa == "Zeytinlik Hesap Merkezi":
         st.success(f"Tahmini Yağ Üretimi: {int(toplam_yag)} Litre")
         st.metric("Beklenen Brüt Gelir", f"{toplam_gelir:,.0f} TL")
 
+    st.divider()
+    st.subheader("🔗 Faydalı Bağlantılar")
+    st.write("Verim modelleri ve piyasa takibi için aşağıdaki siteleri inceleyebilirsiniz:")
+    st.markdown("- [Tariş Zeytin ve Zeytinyağı Birliği](https://www.tariszeytinyagi.com.tr/)")
+    st.markdown("- [İspanyol (Arbequina) Sık Dikim Bilgi Hattı](https://www.agromillora.com/tr/olivos-shd/)")
+
 # --- 2. SAYFA: ÇİFTLİK GÖZLEM & SULAMA ---
 elif sayfa == "Çiftlik Gözlem & Sulama":
     st.title("🛰️ Çiftlik Gözlem & Aktif Sulama Kontrolü")
     
-    # SULAMA KONTROL ÜNİTESİ (Dün taslaktaki gibi)
     st.subheader("🚿 Ana Sulama Sistemi")
     c1, c2 = st.columns([1, 2])
     
@@ -132,7 +129,6 @@ elif sayfa == "Çiftlik Gözlem & Sulama":
                 st.rerun()
     
     with c2:
-        st.info("Sulama sistemi aktifken Kart-1 üzerinden hat basıncı ve akış verileri anlık takip edilir.")
         st.metric("Ana Hat Akışı", "120 L/dk" if st.session_state.sulama_aktif else "0 L/dk")
 
     st.divider()
